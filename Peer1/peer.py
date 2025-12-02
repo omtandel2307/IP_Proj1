@@ -56,13 +56,13 @@ def register_local_rfcs(ci_file, upload_port):
         files = os.listdir('.')
     except Exception as e:
         print(f"[Peer] Error reading directory: {e}")
-        return
+        return False
     
     rfc_files = [f for f in files if f.startswith('rfc') and f.endswith('.txt')]
     
     if not rfc_files:
         print("[Peer] No local RFC files found.")
-        return
+        return True
     
     print(f"[Peer] Found {len(rfc_files)} RFC file(s)")
     
@@ -75,16 +75,24 @@ def register_local_rfcs(ci_file, upload_port):
             
             print(f"[Peer] Registering RFC {rfc_number}: {title}")
             
-            send_add(ci_file, rfc_number, title, upload_port)
+            success = send_add(ci_file, rfc_number, title, upload_port)
+            if not success:
+                print("[Peer] Registration failed - port conflict or server error")
+                return False
             
         except ValueError:
             print(f"[Peer] Skipping invalid filename: {filename}")
             continue
+        except (BrokenPipeError, ConnectionResetError, OSError) as e:
+            print(f"[Peer] Connection error during registration: {e}")
+            print("[Peer] Server rejected the connection - port may be in use")
+            return False
         except Exception as e:
             print(f"[Peer] Error registering {filename}: {e}")
-            continue
+            return False
     
     print("[Peer] Registration complete.")
+    return True
 
 def handle_get_rfc(conn, addr):
     conn_file = conn.makefile('rwb')
@@ -485,7 +493,10 @@ def main():
     
     print(f"[Peer] Connected to server at port {ci_port}")
 
-    register_local_rfcs(ci_file, upload_port)
+    if not register_local_rfcs(ci_file, upload_port):
+        print("[Peer] Failed to register with server. Please use a different port and try again.")
+        ci_sock.close()
+        return
 
     while True:
         try:

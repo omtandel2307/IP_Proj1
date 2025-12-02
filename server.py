@@ -61,7 +61,11 @@ def peer_conn(conn, addr):
                     print(f"[Server] Connection from host {host} at {addr[0]}:{port}")
                     connection_logged = True
 
-                peer_add(host, port)
+                # Check if port is already used by another peer
+                if not peer_add(host, port):
+                    send_err(conn_file, 400, "Bad Request - Port already in use by another peer")
+                    conn_file.flush()
+                    break
                 handle_list_all(conn_file) # Helper function to handle LIST ALL
                 conn_file.flush()
                 continue
@@ -113,7 +117,11 @@ def peer_conn(conn, addr):
                     print(f"[Server] Connection from host {host} at {addr[0]}:{port}")
                     connection_logged = True
                 
-                peer_add(host, port)
+                # Check if port is already used by another peer
+                if not peer_add(host, port):
+                    send_err(conn_file, 400, "Bad Request - Port already in use by another peer")
+                    conn_file.flush()
+                    break
 
                 #dispatch
                 if method == "ADD":
@@ -216,11 +224,16 @@ data_lock = threading.Lock()
 
 def peer_add(host, port):
     with data_lock:
+        # Check if this port is already used by a different peer
         for peer in peers:
+            if peer['port'] == port and peer['host'] != host:
+                print(f"[Server] Rejected: Port {port} already in use by {peer['host']}")
+                return False
             if peer['host'] == host and peer['port'] == port:
-                return
+                return True
         peers.append({'host': host, 'port': port})
         print(f"[Server] Added {host}:{port}")
+        return True
 
 def rfc_add(rfc_number, title, host, port):
     with data_lock:
